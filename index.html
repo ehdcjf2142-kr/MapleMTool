@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>메이플스토리M AI 과금 분석기</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans KR', sans-serif; background-color: #fdfaf6; color: #4a4a4a; }
+        .chart-container { position: relative; width: 100%; max-width: 600px; margin: 0 auto; height: 300px; }
+        .active-tier { background-color: #fff7ed; border-color: #d97706; color: #d97706; }
+        .loading-spinner { border: 3px solid #f3f3f3; border-top: 3px solid #d97706; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="antialiased">
+
+    <nav class="bg-white border-b border-gray-200 px-4 py-4 sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <span class="text-2xl font-bold text-gray-800">🍁 메이플M <span class="accent-text text-orange-600">AI 분석기</span></span>
+            <div class="text-sm text-gray-500">조동이형 채널 공식 도구</div>
+        </div>
+    </nav>
+
+    <main class="max-w-6xl mx-auto px-4 py-8 space-y-12">
+        <!-- 1. 기본 분석기 섹션 -->
+        <section class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-8">
+            <div class="mb-6">
+                <h2 class="text-2xl font-bold mb-2 text-gray-800">💸 과금 구간별 메소 시뮬레이션</h2>
+                <p class="text-gray-600">구간을 선택하면 1주일 내 확보 가능한 메소를 계산합니다.</p>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                <button onclick="updateTier('low')" id="btn-low" class="p-4 rounded-xl border-2 text-left active-tier transition-all">
+                    <div class="text-xs font-bold text-gray-400">소과금</div>
+                    <div class="text-xl font-bold">~5.5만원</div>
+                </button>
+                <button onclick="updateTier('mid')" id="btn-mid" class="p-4 rounded-xl border-2 border-gray-100 text-left transition-all">
+                    <div class="text-xs font-bold text-gray-400">중과금</div>
+                    <div class="text-xl font-bold">~30만원</div>
+                </button>
+                <button onclick="updateTier('high')" id="btn-high" class="p-4 rounded-xl border-2 border-gray-100 text-left transition-all">
+                    <div class="text-xs font-bold text-gray-400">고과금</div>
+                    <div class="text-xl font-bold">~100만원</div>
+                </button>
+                <button onclick="updateTier('whale')" id="btn-whale" class="p-4 rounded-xl border-2 border-gray-100 text-left transition-all">
+                    <div class="text-xs font-bold text-gray-400">초고과금</div>
+                    <div class="text-xl font-bold">300만원+</div>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="lg:col-span-1 space-y-4">
+                    <div class="bg-orange-50 rounded-xl p-6 border border-orange-100">
+                        <p class="text-sm text-orange-800 font-bold mb-1">예상 획득량</p>
+                        <div class="flex items-baseline space-x-1">
+                            <span id="meso-display" class="text-4xl font-bold text-orange-600">18</span>
+                            <span class="text-lg text-orange-500 font-bold">억 메소</span>
+                        </div>
+                    </div>
+                    <div class="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                        <h4 class="font-bold text-sm text-gray-700 mb-2">추천 구성</h4>
+                        <ul id="pkg-list" class="text-sm text-gray-600 space-y-2"></ul>
+                    </div>
+                </div>
+                <div class="lg:col-span-2">
+                    <div class="chart-container">
+                        <canvas id="mesoChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. Gemini AI 어드바이저 섹션 (추가된 기능) -->
+        <section class="bg-white rounded-2xl shadow-sm border border-orange-200 p-6 md:p-8">
+            <div class="flex items-center space-x-2 mb-6">
+                <span class="text-2xl">🤖</span>
+                <h2 class="text-2xl font-bold text-gray-800">Gemini AI 전용 어드바이저</h2>
+            </div>
+            
+            <div class="space-y-4">
+                <p class="text-gray-600 text-sm">현재 메이플M 최신 시세나 패키지 효율에 대해 AI에게 물어보세요. (구글 검색 기반)</p>
+                <div class="flex flex-col md:flex-row gap-2">
+                    <input type="text" id="ai-input" placeholder="예: 현재 로얄 스타일 시세가 어때? 또는 성장 패키지 효율 분석해줘" 
+                           class="flex-1 p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500">
+                    <button onclick="askGemini()" id="ask-btn" class="bg-orange-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-orange-700 transition-colors flex items-center justify-center space-x-2">
+                        <span>질문하기</span>
+                        <div id="loading" class="loading-spinner hidden"></div>
+                    </button>
+                </div>
+                
+                <div id="ai-response-container" class="hidden mt-6 p-6 bg-orange-50 rounded-2xl border border-orange-100">
+                    <div class="flex items-start space-x-3">
+                        <span class="text-xl">💡</span>
+                        <div id="ai-response" class="text-sm leading-relaxed text-gray-700 whitespace-pre-wrap"></div>
+                    </div>
+                    <div id="grounding-sources" class="mt-4 pt-4 border-t border-orange-200 text-xs text-gray-400"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // --- 기본 데이터 및 시뮬레이터 로직 ---
+        const tiers = {
+            low: { meso: 18, pkgs: ["성장 패키지(캐릭터)", "매일매일 크리스탈", "수수료 우대권"] },
+            mid: { meso: 85, pkgs: ["월간 활성 패키지 I", "위클리 이벤트", "성장 패키지 II"] },
+            high: { meso: 240, pkgs: ["1+1 크리스탈 패키지", "고급 뽑기 세트", "시즌 한정 패키지"] },
+            whale: { meso: 600, pkgs: ["상점 올매수", "깡 크리스탈 충전", "마스터 라벨 저격"] }
+        };
+
+        let chart;
+        function initChart() {
+            const ctx = document.getElementById('mesoChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['소과금', '중과금', '고과금', '초고과금'],
+                    datasets: [{
+                        label: '예상 메소(억)',
+                        data: [18, 85, 240, 600],
+                        backgroundColor: 'rgba(217, 119, 6, 0.5)',
+                        borderRadius: 8
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+        function updateTier(key) {
+            const t = tiers[key];
+            document.getElementById('meso-display').innerText = t.meso;
+            document.getElementById('pkg-list').innerHTML = t.pkgs.map(p => `<li>✅ ${p}</li>`).join('');
+            document.querySelectorAll('button').forEach(b => b.classList.remove('active-tier'));
+            document.getElementById(`btn-${key}`).classList.add('active-tier');
+            
+            const idx = Object.keys(tiers).indexOf(key);
+            chart.data.datasets[0].backgroundColor = chart.data.labels.map((_, i) => i === idx ? '#d97706' : 'rgba(217, 119, 6, 0.5)');
+            chart.update();
+        }
+
+        // --- Gemini API 로직 (LLM 호출) ---
+        const apiKey = ""; // 실행 환경에서 자동으로 제공됨
+
+        async function fetchGemini(prompt) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }],
+                systemInstruction: { parts: [{ text: "너는 메이플스토리M 과금 및 효율 분석 전문가야. 구글 검색 결과를 바탕으로 유저의 질문에 친절하게 답변해줘. 답변은 5줄 이내로 요약해서 한국어로 말해줘." }] },
+                tools: [{ "google_search": {} }]
+            };
+
+            for (let i = 0; i < 5; i++) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!response.ok) throw new Error('API Error');
+                    return await response.json();
+                } catch (e) {
+                    await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+                }
+            }
+            throw new Error('모든 재시도 실패');
+        }
+
+        async function askGemini() {
+            const input = document.getElementById('ai-input').value;
+            if (!input) return;
+
+            const btn = document.getElementById('ask-btn');
+            const loader = document.getElementById('loading');
+            const resContainer = document.getElementById('ai-response-container');
+            const resText = document.getElementById('ai-response');
+            const sourceText = document.getElementById('grounding-sources');
+
+            btn.disabled = true;
+            loader.classList.remove('hidden');
+            resContainer.classList.add('hidden');
+
+            try {
+                const result = await fetchGemini(input);
+                const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                const sources = result.candidates?.[0]?.groundingMetadata?.groundingAttributions?.map(a => `<a href="${a.web?.uri}" target="_blank" class="underline"> [${a.web?.title}] </a>`).join(' ');
+
+                resText.innerText = text || "답변을 가져오지 못했습니다.";
+                sourceText.innerHTML = sources ? "출처: " + sources : "";
+                resContainer.classList.remove('hidden');
+            } catch (e) {
+                resText.innerText = "오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
+                resContainer.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+                loader.classList.add('hidden');
+            }
+        }
+
+        window.onload = () => { initChart(); updateTier('low'); };
+    </script>
+</body>
+</html>
